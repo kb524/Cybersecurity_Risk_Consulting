@@ -8,8 +8,6 @@ from sklearn.metrics import mean_squared_error, r2_score
 
 def perfcalc(Start_date, Period_Days, ISIN):
 
-    Start_date = pd.to_datetime(Start_date)
-
     while True:
         try:
             # Try if a shareprice exists on selected end_date
