@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 
-##Testing for Company Apple
+##Testing for Company
 
 def perfcalc(Start_date, Period_Days, ISIN):
 
