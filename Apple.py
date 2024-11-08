@@ -5,6 +5,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.ticker import PercentFormatter
 
 ##Testing for Company
 
@@ -125,9 +126,10 @@ print("Intercept:", model.intercept_)
 fig, ax1 = plt.subplots()
 
 # first chart for performance
-ax1.plot(data_mai['Date'], data_mai['Perf_1_Days'], label='Performance in %', color='blue')
+ax1.plot(data_mai['Date'], data_mai['Perf_3_Days'] * 100, label='Performance in %', color='blue')
 ax1.set_xlabel('Date')
 ax1.set_ylabel('Performance in %', color='blue')
+ax1.yaxis.set_major_formatter(PercentFormatter())
 ax1.tick_params(axis='y', labelcolor='blue')
 ax1.set_title('1 Day performance and cyber attack news data ')
 
@@ -144,7 +146,5 @@ ax2.scatter(data_mai['Date'], data_mai['Cyber Attack'], label='Cyber attack news
 ax2.set_ylabel('Cyber attack news', color='orange')
 ax2.tick_params(axis='y', labelcolor='orange')
 
-# add legend
-fig.legend(loc='upper left', bbox_to_anchor=(0.1, 0.9))
 
 plt.show()
