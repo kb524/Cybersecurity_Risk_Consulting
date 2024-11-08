@@ -6,6 +6,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.ticker import PercentFormatter
+import seaborn as sns
 
 ##Testing for Company
 
@@ -83,12 +84,12 @@ Shareprice.replace(".", 0, inplace=True)
 #Select Date for analysis
 #pd.set_option('display.max_columns', None)
 pd.reset_option('display.max_columns')
-data_mai = data[(data['Date'] >= '2023-05-01') & (data['Date'] <= '2023-05-31')]
+data_mai = data[(data['Date'] >= '2020-05-01') & (data['Date'] <= '2023-05-31')]
 
 print(data_mai.head())
 
 #Calculate Share Performance for x Days
-period_days= [3,1]
+period_days= [1,2,3]
 
 for date in data_mai['Date']:
     for period in period_days:
@@ -148,3 +149,15 @@ ax2.tick_params(axis='y', labelcolor='orange')
 
 
 plt.show()
+
+#Correlation Chart
+categories = ['Cyber Attack','Data Breach','Perf_3_Days','Perf_2_Days', 'Perf_1_Days']
+corr = data_mai[categories].corr()
+plt.figure()
+sns.heatmap(corr, annot=True, cmap='viridis')
+plt.tight_layout()
+plt.title('Correlation analysis')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+
