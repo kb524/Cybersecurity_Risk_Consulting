@@ -3,6 +3,8 @@ import os
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
 ##Testing for Company
 
@@ -78,12 +80,14 @@ Shareprice = pd.read_excel(file_path, sheet_name='Output')
 Shareprice.replace(".", 0, inplace=True)
 
 #Select Date for analysis
-pd.set_option('display.max_columns', None)
+#pd.set_option('display.max_columns', None)
+pd.reset_option('display.max_columns')
 data_mai = data[(data['Date'] >= '2023-05-01') & (data['Date'] <= '2023-05-31')]
 
+print(data_mai.head())
 
-#Calculate Share Performance for 3 Days
-period_days= [3]
+#Calculate Share Performance for x Days
+period_days= [3,1]
 
 for date in data_mai['Date']:
     for period in period_days:
@@ -116,3 +120,31 @@ print("Koeffizienten:", model.coef_)
 print("Intercept:", model.intercept_)
 
 
+
+# Chart for mid-term presentation
+fig, ax1 = plt.subplots()
+
+# first chart for performance
+ax1.plot(data_mai['Date'], data_mai['Perf_1_Days'], label='Performance in %', color='blue')
+ax1.set_xlabel('Date')
+ax1.set_ylabel('Performance in %', color='blue')
+ax1.tick_params(axis='y', labelcolor='blue')
+ax1.set_title('1 Day performance and cyber attack news data ')
+
+
+# shorten date format as it was too long
+ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
+ax1.tick_params(axis='x', rotation=45)
+
+
+# second chart for cyber attack data
+ax2 = ax1.twinx()
+ax2.scatter(data_mai['Date'], data_mai['Cyber Attack'], label='Cyber attack news', color='orange')
+ax2.set_ylabel('Cyber attack news', color='orange')
+ax2.tick_params(axis='y', labelcolor='orange')
+
+# add legend
+fig.legend(loc='upper left', bbox_to_anchor=(0.1, 0.9))
+
+plt.show()
