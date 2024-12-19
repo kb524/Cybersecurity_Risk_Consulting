@@ -7,6 +7,11 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from matplotlib.ticker import PercentFormatter
 import seaborn as sns
+import warnings
+
+#ignore future warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 ##Testing for Company
 
@@ -79,11 +84,34 @@ Shareprice = pd.read_excel(file_path, sheet_name='Output')
 Shareprice.replace(".", 0, inplace=True)
 
 #Select Date for analysis
-#pd.set_option('display.max_columns', None)
-pd.reset_option('display.max_columns')
+pd.set_option('display.max_columns', None)
+#pd.reset_option('display.max_columns')
 df = data[(data['Date'] >= '2020-05-01') & (data['Date'] <= '2023-05-31')]
+df.fillna(0, inplace=True)
 
-print(df.head())
+##Weekend fix
+#identify trading days
+df.loc[:, 'Trading_day'] = 0
+for i in df.index:
+    if df.loc[i, 'Date'] in Shareprice['Date'].values:
+        df.loc[i, 'Trading_day'] = 1
+
+from pandasgui import show
+#show(df)
+
+
+# copy values from not-trading days to trading days
+columns_to_add = [col for col in df.columns if col not in ['Date', 'Company','Trading_day','Perc. of Positive Sentiment']]
+for idx in df[df['Trading_day'] == 0].index:
+    # find next date with Trading_day = 1
+    next_idx = df[(df.index > idx) & (df['Trading_day'] == 1)].index.min()
+    if not pd.isna(next_idx):
+        #copy all values exept date, company, Trading day, sentiment
+        df.loc[next_idx, columns_to_add] += df.loc[idx, columns_to_add]
+
+# Delete non-trading days
+df = df[df['Trading_day'] != 0]
+
 
 #Calculate Share Performance for x Days
 period_days= [1,2,3]
