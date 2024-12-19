@@ -8,6 +8,8 @@ import matplotlib.dates as mdates
 from matplotlib.ticker import PercentFormatter
 import seaborn as sns
 import warnings
+from pandasgui import show
+from tabulate import tabulate
 
 #ignore future warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -86,7 +88,7 @@ Shareprice.replace(".", 0, inplace=True)
 #Select Date for analysis
 pd.set_option('display.max_columns', None)
 #pd.reset_option('display.max_columns')
-df = data[(data['Date'] >= '2020-05-01') & (data['Date'] <= '2023-05-31')]
+df = data[(data['Date'] >= '2020-01-01') & (data['Date'] <= '2023-05-31')]
 df.fillna(0, inplace=True)
 
 ##Weekend fix
@@ -101,13 +103,13 @@ from pandasgui import show
 
 
 # copy values from not-trading days to trading days
-columns_to_add = [col for col in df.columns if col not in ['Date', 'Company','Trading_day','Perc. of Positive Sentiment']]
+columns_to_copy = [col for col in df.columns if col not in ['Date', 'Company','Trading_day','Perc. of Positive Sentiment']]
 for idx in df[df['Trading_day'] == 0].index:
     # find next date with Trading_day = 1
     next_idx = df[(df.index > idx) & (df['Trading_day'] == 1)].index.min()
     if not pd.isna(next_idx):
         #copy all values exept date, company, Trading day, sentiment
-        df.loc[next_idx, columns_to_add] += df.loc[idx, columns_to_add]
+        df.loc[next_idx, columns_to_copy] += df.loc[idx, columns_to_copy]
 
 # Delete non-trading days
 df = df[df['Trading_day'] != 0]
@@ -122,10 +124,9 @@ for date in df['Date']:
         df.loc[df['Date'] == date, new_column_name] = perfcalc(date, period, df.loc[df['Date'] == date, 'Company'].values[0])
 
 print(df)
-#Regression
+#Linear Regression for one y
 
 # Define independent (Features) and dependent variables (Target)
-df = df.fillna(0) #replace NaN by 0
 X = df[['Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach']]  # independent variables
 y = df['Perf_3_Days']      # dependent variable
 
@@ -146,6 +147,54 @@ print("R²-Score:", r2_score(y_test, y_pred))
 print("Koeffizienten:", model.coef_)
 print("Intercept:", model.intercept_)
 
+#Linear Regression to compare different y
+# Define independent variables
+X = df[['Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach']]  # independent variables
+
+# Define different dependent variables
+targets = ['Perf_1_Days', 'Perf_2_Days','Perf_3_Days']
+
+# Initialize results list
+results = []
+
+# Loop through each target variable
+for target in targets:
+    y = df[target]  # dependent variable
+
+    # Split test and training data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    # Create & train model
+    model = LinearRegression()
+    model.fit(X_train, y_train)
+
+    # Prediction
+    y_pred = model.predict(X_test)
+
+    # Collect results
+    results.append({
+        'Target': target,
+        'MSE': mean_squared_error(y_test, y_pred),
+        'R2_Score': r2_score(y_test, y_pred),
+        'Coefficients': [float(round(c, 4)) for c in model.coef_],
+        'Intercept': float(round(model.intercept_, 4))
+    })
+
+# prepare results table
+table_data = [
+    [
+        result['Target'],
+        result['MSE'],
+        result['R2_Score'],
+        result['Coefficients'],
+        result['Intercept']
+    ]
+    for result in results
+]
+headers = ["Target", "MSE", "R2_Score", "Coefficients", "Intercept"]
+
+# show table
+print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
 
 # Chart for mid-term presentation
@@ -184,5 +233,5 @@ plt.tight_layout()
 plt.title('Correlation analysis')
 plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
-plt.show()
+#plt.show()
 
