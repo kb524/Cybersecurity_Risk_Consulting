@@ -3,10 +3,14 @@ import os
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-from matplotlib.ticker import PercentFormatter
-import seaborn as sns
+import warnings
+from pandasgui import show
+from tabulate import tabulate
+
+
+#ignore future warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 ##Testing for Company
 
@@ -40,19 +44,16 @@ def perfcalc(Start_date, Period_Days, ISIN):
 
 
 # path to csv files
-data_folder = './Data/Apple'
+data_folder = './Data/Company_files'
 
 # get list of all files in the Data folder
 all_files = os.listdir(data_folder)
-
-apple_files = [file for file in all_files if file.startswith("US0378331005")]
-
 
 # empty list for data frames per company
 dataframes = []
 
 # load csv files
-for file in apple_files:
+for file in all_files:
     file_path = os.path.join(data_folder, file)
 
     # load csv file
@@ -77,34 +78,58 @@ for file in apple_files:
         data = pd.merge(data, df, on=['Date', 'Company'], how='outer')
 
 #Load Financial Data
-file_path = './Data/Apple/Shareprice.xlsx'
+file_path = './Data/Finance/Shareprice.xlsx'
 Shareprice = pd.read_excel(file_path, sheet_name='Output')
 Shareprice.replace(".", 0, inplace=True)
 
-
+print(Shareprice.head())
 
 #Select Date for analysis
-#pd.set_option('display.max_columns', None)
-pd.reset_option('display.max_columns')
-data_mai = data[(data['Date'] >= '2020-05-01') & (data['Date'] <= '2023-05-31')]
+pd.set_option('display.max_columns', None)
+#pd.reset_option('display.max_columns')
+df = data[(data['Date'] >= '2020-01-01') & (data['Date'] <= '2023-05-31')]
+df.fillna(0, inplace=True)
 
-print(data_mai.head())
+show(df)
+
+##Weekend fix
+#identify trading days
+df.loc[:, 'Trading_day'] = 0
+for i in df.index:
+    if df.loc[i, 'Date'] in Shareprice['Date'].values:
+        df.loc[i, 'Trading_day'] = 1
+
+
+#show(df)
+
+
+# copy values from not-trading days to trading days
+columns_to_copy = [col for col in df.columns if col not in ['Date', 'Company','Trading_day','Perc. of Positive Sentiment']]
+for idx in df[df['Trading_day'] == 0].index:
+    # find next date with Trading_day = 1
+    next_idx = df[(df.index > idx) & (df['Trading_day'] == 1)].index.min()
+    if not pd.isna(next_idx):
+        #copy all values exept date, company, Trading day, sentiment
+        df.loc[next_idx, columns_to_copy] += df.loc[idx, columns_to_copy]
+
+# Delete non-trading days
+df = df[df['Trading_day'] != 0]
+
 
 #Calculate Share Performance for x Days
 period_days= [1,2,3]
 
-for date in data_mai['Date']:
+for date in df['Date']:
     for period in period_days:
         new_column_name = 'Perf_' + str(period) + '_Days'
-        data_mai.loc[data_mai['Date'] == date, new_column_name] = perfcalc(date, period, data_mai.loc[data_mai['Date'] == date, 'Company'].values[0])
+        df.loc[df['Date'] == date, new_column_name] = perfcalc(date, period, df.loc[df['Date'] == date, 'Company'].values[0])
 
-print(data_mai)
-#Regression
+
+#Linear Regression for one y
 
 # Define independent (Features) and dependent variables (Target)
-data_mai = data_mai.fillna(0) #replace NaN by 0
-X = data_mai[['Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach']]  # independent variables
-y = data_mai['Perf_3_Days']      # dependent variable
+X = df[['Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach']]  # independent variables
+y = df['Perf_3_Days']      # dependent variable
 
 # Split test and training data
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -123,43 +148,52 @@ print("R²-Score:", r2_score(y_test, y_pred))
 print("Koeffizienten:", model.coef_)
 print("Intercept:", model.intercept_)
 
+#Linear Regression to compare different y
+# Define independent variables
+X = df[['Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach']]  # independent variables
 
+# Define different dependent variables
+targets = ['Perf_1_Days', 'Perf_2_Days','Perf_3_Days']
 
-# Chart for mid-term presentation
-fig, ax1 = plt.subplots()
+# Initialize results list
+results = []
 
-# first chart for performance
-ax1.plot(data_mai['Date'], data_mai['Perf_3_Days'] * 100, label='Performance in %', color='blue')
-ax1.set_xlabel('Date')
-ax1.set_ylabel('Performance in %', color='blue')
-ax1.yaxis.set_major_formatter(PercentFormatter())
-ax1.tick_params(axis='y', labelcolor='blue')
-ax1.set_title('1 Day performance and cyber attack news data ')
+# Loop through each target variable
+for target in targets:
+    y = df[target]  # dependent variable
 
+    # Split test and training data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# shorten date format as it was too long
-ax1.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-ax1.xaxis.set_major_locator(mdates.AutoDateLocator())
-ax1.tick_params(axis='x', rotation=45)
+    # Create & train model
+    model = LinearRegression()
+    model.fit(X_train, y_train)
 
+    # Prediction
+    y_pred = model.predict(X_test)
 
-# second chart for cyber attack data
-ax2 = ax1.twinx()
-ax2.scatter(data_mai['Date'], data_mai['Cyber Attack'], label='Cyber attack news', color='orange')
-ax2.set_ylabel('Cyber attack news', color='orange')
-ax2.tick_params(axis='y', labelcolor='orange')
+    # Collect results
+    results.append({
+        'Target': target,
+        'MSE': mean_squared_error(y_test, y_pred),
+        'R2_Score': r2_score(y_test, y_pred),
+        'Coefficients': [float(round(c, 4)) for c in model.coef_],
+        'Intercept': float(round(model.intercept_, 4))
+    })
 
+# prepare results table
+table_data = [
+    [
+        result['Target'],
+        result['MSE'],
+        result['R2_Score'],
+        result['Coefficients'],
+        result['Intercept']
+    ]
+    for result in results
+]
+headers = ["Target", "MSE", "R2_Score", "Coefficients", "Intercept"]
 
-plt.show()
-
-#Correlation Chart
-categories = ['Cyber Attack','Data Breach','Perf_3_Days','Perf_2_Days', 'Perf_1_Days']
-corr = data_mai[categories].corr()
-plt.figure()
-sns.heatmap(corr, annot=True, cmap='viridis')
-plt.tight_layout()
-plt.title('Correlation analysis')
-plt.xticks(rotation=45, ha='right')
-plt.tight_layout()
-plt.show()
+# show table
+print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
