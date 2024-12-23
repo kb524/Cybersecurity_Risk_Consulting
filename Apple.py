@@ -12,8 +12,7 @@ from tabulate import tabulate
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
-##Testing for Company
-
+#Define function for performance calculation
 def perfcalc(Start_date, Period_Days, ISIN):
 
     while True:
@@ -44,7 +43,7 @@ def perfcalc(Start_date, Period_Days, ISIN):
 
 
 # path to csv files
-data_folder = './Data/Company_files'
+data_folder = './Data/Cyber_News'
 
 # get list of all files in the Data folder
 all_files = os.listdir(data_folder)
