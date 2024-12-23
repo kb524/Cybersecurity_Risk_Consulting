@@ -81,6 +81,8 @@ file_path = './Data/Apple/Shareprice.xlsx'
 Shareprice = pd.read_excel(file_path, sheet_name='Output')
 Shareprice.replace(".", 0, inplace=True)
 
+
+
 #Select Date for analysis
 #pd.set_option('display.max_columns', None)
 pd.reset_option('display.max_columns')
