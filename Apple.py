@@ -6,13 +6,14 @@ from sklearn.metrics import mean_squared_error, r2_score
 import warnings
 from pandasgui import show
 from tabulate import tabulate
+import matplotlib.pyplot as plt
 
 
 #ignore future warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
-#Define function for performance calculation
+###1. Define function for performance calculation
 def perfcalc(Start_date, Period_Days, ISIN):
 
     while True:
@@ -41,7 +42,8 @@ def perfcalc(Start_date, Period_Days, ISIN):
 
     return Performace
 
-
+###2. Load & adjustment of cyber news data
+##Pipline for cyber news data
 # path to csv files
 data_folder = './Data/Cyber_News'
 
@@ -76,20 +78,39 @@ for file in all_files:
     for df in dataframes[1:]:
         data = pd.merge(data, df, on=['Date', 'Company'], how='outer')
 
-#Load Financial Data
+#pd.reset_option('display.max_columns')
+
+#replace nan by 0
+df= data.copy()
+df.fillna(0, inplace=True)
+
+#Create visulalization of cyber news total data
+df['Total_Cyber_News'] = df['Cyber Attack'] + df['Data Security Management']+ df['Cyber Security'] + df['Data Breach']
+
+plt.plot(df['Date'], df['Total_Cyber_News'], label = 'Total Cyber News')
+plt.xlabel('Date')
+plt.ylabel('Total Cyber News')
+plt.title('Total Cyber News Data')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+###3. Load Financial Data
 file_path = './Data/Finance/Shareprice.xlsx'
 Shareprice = pd.read_excel(file_path, sheet_name='Output')
 Shareprice.replace(".", 0, inplace=True)
 
-print(Shareprice.head())
+#Create visulalization of shareprice
 
-#Select Date for analysis
-pd.set_option('display.max_columns', None)
-#pd.reset_option('display.max_columns')
-df = data[(data['Date'] >= '2020-01-01') & (data['Date'] <= '2023-05-31')]
-df.fillna(0, inplace=True)
-
-show(df)
+plt.plot(Shareprice['Date'], Shareprice['US0378331005'], label = 'Apple Inc. stock price')
+plt.xlabel('Date')
+plt.ylabel('Stock price in USD')
+plt.title('Development of Apple Inc. stock price')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
 
 ##Weekend fix
 #identify trading days
@@ -97,10 +118,6 @@ df.loc[:, 'Trading_day'] = 0
 for i in df.index:
     if df.loc[i, 'Date'] in Shareprice['Date'].values:
         df.loc[i, 'Trading_day'] = 1
-
-
-#show(df)
-
 
 # copy values from not-trading days to trading days
 columns_to_copy = [col for col in df.columns if col not in ['Date', 'Company','Trading_day','Perc. of Positive Sentiment']]
@@ -114,9 +131,19 @@ for idx in df[df['Trading_day'] == 0].index:
 # Delete non-trading days
 df = df[df['Trading_day'] != 0]
 
+##4. Find dates for analysis
+first_date = df.loc[df['Total_Cyber_News'] > 0, 'Date'].iloc[0]
+pd.set_option('display.max_columns', None)
+print(first_date)
+
+row = data.loc[data['Date'] == "2021-11-23"]
+#print(row)
+
+df = df[(df['Date'] >= '2014-05-28') & (df['Date'] <= '2024-05-28')]
+
 
 #Calculate Share Performance for x Days
-period_days= [1,2,3]
+period_days= [1,2,3,-1]
 
 for date in df['Date']:
     for period in period_days:
@@ -124,7 +151,7 @@ for date in df['Date']:
         df.loc[df['Date'] == date, new_column_name] = perfcalc(date, period, df.loc[df['Date'] == date, 'Company'].values[0])
 
 
-#Linear Regression for one y
+#5. Linear Regression for one y
 
 # Define independent (Features) and dependent variables (Target)
 X = df[['Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach']]  # independent variables
@@ -147,12 +174,12 @@ print("R²-Score:", r2_score(y_test, y_pred))
 print("Koeffizienten:", model.coef_)
 print("Intercept:", model.intercept_)
 
-#Linear Regression to compare different y
+#6. Linear Regression to compare different y
 # Define independent variables
 X = df[['Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach']]  # independent variables
 
 # Define different dependent variables
-targets = ['Perf_1_Days', 'Perf_2_Days','Perf_3_Days']
+targets = ['Perf_1_Days', 'Perf_2_Days','Perf_3_Days','Perf_-1_Days']
 
 # Initialize results list
 results = []

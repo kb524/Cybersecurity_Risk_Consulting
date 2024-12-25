@@ -5,7 +5,7 @@ import seaborn as sns
 import plotly.express as px
 
 # path to csv files
-data_folder = './Data/Cyber'
+data_folder = './Data/Cyber_News'
 
 # get list of all files in the Data folder
 all_files = os.listdir(data_folder)
