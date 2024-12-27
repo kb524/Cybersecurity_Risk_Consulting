@@ -7,42 +7,14 @@ import warnings
 from pandasgui import show
 from tabulate import tabulate
 import matplotlib.pyplot as plt
+import pandas_market_calendars as mcal
 
 
 #ignore future warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
-###1. Define function for performance calculation
-def perfcalc(Start_date, Period_Days, ISIN):
-
-    while True:
-        try:
-            # Try if a shareprice exists on selected end_date
-            Shareprice_Start = Shareprice.loc[Shareprice['Date'] == Start_date, ISIN].values[0]
-            break
-        except IndexError:
-            # if end_date doesn't exist, use the next available shareprice
-            Start_date += pd.Timedelta(days=1)
-
-    End_Date = Start_date + pd.Timedelta(days=Period_Days)
-
-
-    while True:
-        try:
-            # Try if a shareprice exists on selected end_date
-            Shareprice_End = Shareprice.loc[Shareprice['Date'] == End_Date, ISIN].values[0]
-            break
-        except IndexError:
-            # if end_date doesn't exist, use the next available shareprice
-            End_Date += pd.Timedelta(days=1)
-
-    Shareprice_End = Shareprice.loc[Shareprice['Date'] == End_Date, ISIN].values[0]
-    Performace = (Shareprice_End / Shareprice_Start) - 1
-
-    return Performace
-
-###2. Load & adjustment of cyber news data
+###Load & adjustment of cyber news data
 ##Pipline for cyber news data
 # path to csv files
 data_folder = './Data/Cyber_News'
@@ -78,11 +50,17 @@ for file in all_files:
     for df in dataframes[1:]:
         data = pd.merge(data, df, on=['Date', 'Company'], how='outer')
 
+
+
+#Statistical description of data
+pd.set_option('display.max_columns', None)
 #pd.reset_option('display.max_columns')
+#print(data[["Volume of News","Perc. of Positive Sentiment","Cyber Attack","Cyber Security","Data Breach","Data Security Management"]].describe())
 
 #replace nan by 0
 df= data.copy()
 df.fillna(0, inplace=True)
+
 
 #Create visulalization of cyber news total data
 df['Total_Cyber_News'] = df['Cyber Attack'] + df['Data Security Management']+ df['Cyber Security'] + df['Data Breach']
@@ -90,19 +68,22 @@ df['Total_Cyber_News'] = df['Cyber Attack'] + df['Data Security Management']+ df
 plt.plot(df['Date'], df['Total_Cyber_News'], label = 'Total Cyber News')
 plt.xlabel('Date')
 plt.ylabel('Total Cyber News')
-plt.title('Total Cyber News Data')
+plt.title('Development of total cyber news data')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.show()
+#plt.show()
 
-###3. Load Financial Data
+###Load Financial Data
 file_path = './Data/Finance/Shareprice.xlsx'
 Shareprice = pd.read_excel(file_path, sheet_name='Output')
 Shareprice.replace(".", 0, inplace=True)
 
-#Create visulalization of shareprice
+#Statistical description of data
+#print(Shareprice['US0378331005'].describe())
 
+
+#Create visulalization of shareprice
 plt.plot(Shareprice['Date'], Shareprice['US0378331005'], label = 'Apple Inc. stock price')
 plt.xlabel('Date')
 plt.ylabel('Stock price in USD')
@@ -110,14 +91,29 @@ plt.title('Development of Apple Inc. stock price')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 ##Weekend fix
-#identify trading days
-df.loc[:, 'Trading_day'] = 0
+#identify trading days according to Nasdaq calendar
+nasdaq_calendar = mcal.get_calendar('NASDAQ')
+
+# Fetch the schedule for the specified date range
+start_date = df['Date'].min()
+end_date = df['Date'].max()
+schedule = nasdaq_calendar.schedule(start_date=start_date, end_date=end_date)
+
+# Extract the list of valid trading dates
+trading_days = schedule.index
+
+##Fix for cyber news set
+# Initialize the 'Trading_day' column to 0
+df['Trading_day'] = 0
+
+# Update 'Trading_day' column based on trading days
 for i in df.index:
-    if df.loc[i, 'Date'] in Shareprice['Date'].values:
+    if df.loc[i, 'Date'] in trading_days:
         df.loc[i, 'Trading_day'] = 1
+
 
 # copy values from not-trading days to trading days
 columns_to_copy = [col for col in df.columns if col not in ['Date', 'Company','Trading_day','Perc. of Positive Sentiment']]
@@ -131,95 +127,221 @@ for idx in df[df['Trading_day'] == 0].index:
 # Delete non-trading days
 df = df[df['Trading_day'] != 0]
 
-##4. Find dates for analysis
-first_date = df.loc[df['Total_Cyber_News'] > 0, 'Date'].iloc[0]
-pd.set_option('display.max_columns', None)
-print(first_date)
+##fix for shareprice dataset
+Shareprice['Trading_day'] = 0
 
-row = data.loc[data['Date'] == "2021-11-23"]
-#print(row)
+# Update 'Trading_day' column based on trading days
+for i in Shareprice.index:
+    if Shareprice.loc[i, 'Date'] in trading_days:
+        Shareprice.loc[i, 'Trading_day'] = 1
 
-df = df[(df['Date'] >= '2014-05-28') & (df['Date'] <= '2024-05-28')]
+# Delete non-trading days
+Shareprice = Shareprice[Shareprice['Trading_day'] != 0]
 
 
-#Calculate Share Performance for x Days
-period_days= [1,2,3,-1]
+##Find dates for analysis
+#first_date = df.loc[df['Total_Cyber_News'] >= 600, 'Date'].iloc[0]
+#print(first_date)
+df= df[(df['Date'] <= '2024-05-28')]
+
+###Calculate Share Performance for x Days
+#Define function for performance calculation
+def perfcalc(Start_date, Period_Days, ISIN):
+    # Define valid date range to prevent infinite loops
+    min_date = Shareprice['Date'].min()
+    max_date = Shareprice['Date'].max()
+
+    while True:
+        if Start_date < min_date or Start_date > max_date:
+            raise ValueError("Start_date is out of range.")
+        try:
+            # Try if a shareprice exists on selected Start_date
+            Shareprice_Start = Shareprice.loc[Shareprice['Date'] == Start_date, ISIN].values[0]
+            break
+        except IndexError:
+            # Move to the next day if Start_date is not found
+            Start_date += pd.Timedelta(days=1)
+
+    # Calculate End_Date based on the period
+    End_Date = Start_date + pd.Timedelta(days=Period_Days)
+
+    while True:
+        if End_Date < min_date or End_Date > max_date:
+            raise ValueError("End_Date is out of range.")
+        try:
+            # Try if a shareprice exists on selected End_Date
+            Shareprice_End = Shareprice.loc[Shareprice['Date'] == End_Date, ISIN].values[0]
+            break
+        except IndexError:
+            # Move to the next day if End_Date is not found
+            End_Date += pd.Timedelta(days=1)
+
+    # Calculate performance
+    Performance = (Shareprice_End / Shareprice_Start) - 1
+
+    return Performance
+
+period_days= [1,2,3]
 
 for date in df['Date']:
     for period in period_days:
         new_column_name = 'Perf_' + str(period) + '_Days'
         df.loc[df['Date'] == date, new_column_name] = perfcalc(date, period, df.loc[df['Date'] == date, 'Company'].values[0])
 
+###Date Selection
+df_max= df[(df['Date'] <= '2024-05-28')]
+df_2015 = df[(df['Date'] >= '2015-09-21') & (df['Date'] <= '2024-05-28')]
+df_2021 = df[(df['Date'] >= '2021-01-28') & (df['Date'] <= '2024-05-28')]
 
-#5. Linear Regression for one y
+###Linear Regression
 
-# Define independent (Features) and dependent variables (Target)
-X = df[['Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach']]  # independent variables
-y = df['Perf_3_Days']      # dependent variable
+datasets = {
+    "df_max": df_max,
+    "df_2015": df_2015,
+    "df_2021": df_2021
+}
 
-# Split test and training data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-
-# Create & train model
-model = LinearRegression()
-model.fit(X_train, y_train)
-
-# prediction
-y_pred = model.predict(X_test)
-
-# print results
-print("Mean Squared Error (MSE):", mean_squared_error(y_test, y_pred))
-print("R²-Score:", r2_score(y_test, y_pred))
-print("Koeffizienten:", model.coef_)
-print("Intercept:", model.intercept_)
-
-#6. Linear Regression to compare different y
+# Linear Regression Analysis
 # Define independent variables
-X = df[['Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach']]  # independent variables
+independent_vars = ['Volume of News','Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach','Perc. of Positive Sentiment']
 
-# Define different dependent variables
-targets = ['Perf_1_Days', 'Perf_2_Days','Perf_3_Days','Perf_-1_Days']
+# Define dependent variables
+targets = ['Perf_1_Days', 'Perf_2_Days', 'Perf_3_Days']
 
-# Initialize results list
-results = []
+# Initialize overall results list
+overall_results = []
 
-# Loop through each target variable
-for target in targets:
-    y = df[target]  # dependent variable
+for dataset_name, dataset in datasets.items():
+    # Extract independent and dependent variables for the current dataset
+    X = dataset[independent_vars]
 
-    # Split test and training data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    for target in targets:
+        y = dataset[target]  # dependent variable
 
-    # Create & train model
-    model = LinearRegression()
-    model.fit(X_train, y_train)
+        # Split test and training data
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Prediction
-    y_pred = model.predict(X_test)
+        # Create & train model
+        model = LinearRegression()
+        model.fit(X_train, y_train)
 
-    # Collect results
-    results.append({
-        'Target': target,
-        'MSE': mean_squared_error(y_test, y_pred),
-        'R2_Score': r2_score(y_test, y_pred),
-        'Coefficients': [float(round(c, 4)) for c in model.coef_],
-        'Intercept': float(round(model.intercept_, 4))
-    })
+        # Prediction
+        y_pred = model.predict(X_test)
 
-# prepare results table
+        # Collect results
+        overall_results.append({
+            'Dataset': dataset_name,
+            'Target': target,
+            'MSE': mean_squared_error(y_test, y_pred),
+            'R2_Score': r2_score(y_test, y_pred),
+            'Coefficients': [float(round(c, 4)) for c in model.coef_],
+            'Intercept': float(round(model.intercept_, 4))
+        })
+
+# Prepare results table
 table_data = [
     [
+        result['Dataset'],
         result['Target'],
         result['MSE'],
         result['R2_Score'],
         result['Coefficients'],
         result['Intercept']
     ]
-    for result in results
+    for result in overall_results
 ]
-headers = ["Target", "MSE", "R2_Score", "Coefficients", "Intercept"]
+headers = ["Dataset", "Target", "MSE", "R2_Score", "Coefficients", "Intercept"]
 
-# show table
+# Show table
 print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
+###Visualization of prediction vs. acutal performance
+
+# Assuming df_max is already defined
+# Define independent variables and the target variable
+X = df_max[['Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach']]
+y = df_max['Perf_1_Days']
+
+# Split the data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Create and train the linear regression model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Make predictions
+y_pred = model.predict(X_test)
+
+# Create the actual vs predicted scatter plot
+plt.figure(figsize=(8, 6))
+plt.scatter(y_test, y_pred, alpha=0.6, label='Predicted vs Actual')
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], color='red', linestyle='--', linewidth=2, label='Ideal Fit')
+plt.xlabel('Actual Performance (Perf_1_Days)')
+plt.ylabel('Predicted Performance')
+plt.title('Actual vs Predicted Performance for Perf_1_Days (df_max)')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+##Non-linear model
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
+from tabulate import tabulate
+
+datasets = {
+    "df_max": df_max,
+    "df_2015": df_2015,
+    "df_2021": df_2021
+}
+
+# Define independent variables
+independent_vars = ['Volume of News', 'Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach', 'Perc. of Positive Sentiment']
+
+# Define dependent variables
+targets = ['Perf_1_Days', 'Perf_2_Days', 'Perf_3_Days']
+
+# Initialize overall results list
+overall_results = []
+
+for dataset_name, dataset in datasets.items():
+    # Extract independent and dependent variables for the current dataset
+    X = dataset[independent_vars]
+
+    for target in targets:
+        y = dataset[target]  # dependent variable
+
+        # Split test and training data
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        # Create & train the Random Forest Regressor
+        model = RandomForestRegressor(n_estimators=100, random_state=42)
+        model.fit(X_train, y_train)
+
+        # Make predictions
+        y_pred = model.predict(X_test)
+
+        # Collect results
+        overall_results.append({
+            'Dataset': dataset_name,
+            'Target': target,
+            'MSE': mean_squared_error(y_test, y_pred),
+            'R2_Score': r2_score(y_test, y_pred),
+            'Feature Importances': [float(round(imp, 4)) for imp in model.feature_importances_]
+        })
+
+# Prepare results table
+table_data = [
+    [
+        result['Dataset'],
+        result['Target'],
+        result['MSE'],
+        result['R2_Score'],
+        result['Feature Importances']
+    ]
+    for result in overall_results
+]
+headers = ["Dataset", "Target", "MSE", "R2_Score", "Feature Importances"]
+
+# Print results table
+print(tabulate(table_data, headers=headers, tablefmt="grid"))
