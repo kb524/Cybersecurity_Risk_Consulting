@@ -2,12 +2,14 @@ import pandas as pd
 import os
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 import warnings
 from pandasgui import show
 from tabulate import tabulate
 import matplotlib.pyplot as plt
 import pandas_market_calendars as mcal
+from sklearn.preprocessing import MinMaxScaler
 
 
 #ignore future warnings
@@ -193,42 +195,40 @@ df_max= df[(df['Date'] <= '2024-05-28')]
 df_2015 = df[(df['Date'] >= '2015-09-21') & (df['Date'] <= '2024-05-28')]
 df_2021 = df[(df['Date'] >= '2021-01-28') & (df['Date'] <= '2024-05-28')]
 
-from sklearn.neural_network import MLPRegressor
-from sklearn.metrics import mean_squared_error, r2_score
-from sklearn.model_selection import train_test_split
-from tabulate import tabulate
 
-# Define datasets
+# Prepare datasets
 datasets = {
     "df_max": df_max,
     "df_2015": df_2015,
     "df_2021": df_2021
 }
 
-# Define independent variables
+# Define independent and dependent variables
 independent_vars = ['Volume of News', 'Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach', 'Perc. of Positive Sentiment']
-
-# Define dependent variables
 targets = ['Perf_1_Days', 'Perf_2_Days', 'Perf_3_Days']
 
 # Initialize overall results list
 overall_results = []
 
+# Min-Max Normalization for each dataset
+scaler = MinMaxScaler()
+
 for dataset_name, dataset in datasets.items():
-    # Extract independent and dependent variables for the current dataset
+    # Normalize independent variables
     X = dataset[independent_vars]
+    X_normalized = scaler.fit_transform(X)
 
     for target in targets:
         y = dataset[target]  # dependent variable
 
         # Split test and training data
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X_normalized, y, test_size=0.2, random_state=42)
 
-        # Create & train the Neural Network
-        model = MLPRegressor(hidden_layer_sizes=(100, 50), activation='relu', solver='adam', max_iter=500, random_state=42)
+        # Create & train model (Linear Regression)
+        model = LinearRegression()
         model.fit(X_train, y_train)
 
-        # Make predictions
+        # Prediction
         y_pred = model.predict(X_test)
 
         # Collect results
@@ -236,20 +236,72 @@ for dataset_name, dataset in datasets.items():
             'Dataset': dataset_name,
             'Target': target,
             'MSE': mean_squared_error(y_test, y_pred),
-            'R2_Score': r2_score(y_test, y_pred)
+            'R2_Score': r2_score(y_test, y_pred),
+            'Coefficients': [float(round(c, 4)) for c in model.coef_],
+            'Intercept': float(round(model.intercept_, 4))
         })
 
 # Prepare results table
-table_data = [
+linear_table_data = [
     [
         result['Dataset'],
         result['Target'],
         result['MSE'],
-        result['R2_Score']
+        result['R2_Score'],
+        result['Coefficients'],
+        result['Intercept']
     ]
     for result in overall_results
 ]
-headers = ["Dataset", "Target", "MSE", "R2_Score"]
+headers = ["Dataset", "Target", "MSE", "R2_Score", "Coefficients", "Intercept"]
 
-# Print results table
-print(tabulate(table_data, headers=headers, tablefmt="grid"))
+# Print results table for Linear Regression
+print("Linear Regression Results:")
+print(tabulate(linear_table_data, headers=headers, tablefmt="grid"))
+
+# Non-linear model: Random Forest
+overall_results_rf = []
+
+for dataset_name, dataset in datasets.items():
+    # Normalize independent variables
+    X = dataset[independent_vars]
+    X_normalized = scaler.fit_transform(X)
+
+    for target in targets:
+        y = dataset[target]  # dependent variable
+
+        # Split test and training data
+        X_train, X_test, y_train, y_test = train_test_split(X_normalized, y, test_size=0.2, random_state=42)
+
+        # Create & train the Random Forest Regressor
+        model = RandomForestRegressor(n_estimators=100, random_state=42)
+        model.fit(X_train, y_train)
+
+        # Make predictions
+        y_pred = model.predict(X_test)
+
+        # Collect results
+        overall_results_rf.append({
+            'Dataset': dataset_name,
+            'Target': target,
+            'MSE': mean_squared_error(y_test, y_pred),
+            'R2_Score': r2_score(y_test, y_pred),
+            'Feature Importances': [float(round(imp, 4)) for imp in model.feature_importances_]
+        })
+
+# Prepare results table for Random Forest
+rf_table_data = [
+    [
+        result['Dataset'],
+        result['Target'],
+        result['MSE'],
+        result['R2_Score'],
+        result['Feature Importances']
+    ]
+    for result in overall_results_rf
+]
+headers_rf = ["Dataset", "Target", "MSE", "R2_Score", "Feature Importances"]
+
+# Print results table for Random Forest
+print("\nRandom Forest Results:")
+print(tabulate(rf_table_data, headers=headers_rf, tablefmt="grid"))
