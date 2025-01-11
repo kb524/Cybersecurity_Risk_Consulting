@@ -10,6 +10,7 @@ from tabulate import tabulate
 import matplotlib.pyplot as plt
 import pandas_market_calendars as mcal
 from sklearn.preprocessing import MinMaxScaler
+from matplotlib.ticker import PercentFormatter
 
 
 #ignore future warnings
@@ -18,8 +19,8 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 ###Load & adjustment of cyber news data
 ##Pipline for cyber news data
-# path to csv files
-data_folder = './Data/Cyber_News'
+# path to synthetic csv files
+data_folder = './Data/Synthetic_Data'
 
 # get list of all files in the Data folder
 all_files = os.listdir(data_folder)
@@ -57,7 +58,7 @@ for file in all_files:
 #Statistical description of data
 pd.set_option('display.max_columns', None)
 #pd.reset_option('display.max_columns')
-#print(data[["Volume of News","Perc. of Positive Sentiment","Cyber Attack","Cyber Security","Data Breach","Data Security Management"]].describe())
+
 
 #replace nan by 0
 df= data.copy()
@@ -74,7 +75,7 @@ plt.title('Development of total cyber news data')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-#plt.show()
+plt.show()
 
 ###Load Financial Data
 file_path = './Data/Finance/Shareprice.xlsx'
@@ -82,27 +83,27 @@ Shareprice = pd.read_excel(file_path, sheet_name='Output')
 Shareprice.replace(".", 0, inplace=True)
 
 #Statistical description of data
-#print(Shareprice['US0378331005'].describe())
+#print(Shareprice['KR7005930003'].describe())
 
 
 #Create visulalization of shareprice
-plt.plot(Shareprice['Date'], Shareprice['US0378331005'], label = 'Apple Inc. stock price')
+plt.plot(Shareprice['Date'], Shareprice['KR7005930003'], label = 'Samsung stock price')
 plt.xlabel('Date')
-plt.ylabel('Stock price in USD')
-plt.title('Development of Apple Inc. stock price')
+plt.ylabel('Stock price in KRW')
+plt.title('Development of Samsung stock price')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-#plt.show()
+plt.show()
 
 ##Weekend fix
-#identify trading days according to Nasdaq calendar
-nasdaq_calendar = mcal.get_calendar('NASDAQ')
+#identify trading days according to asian-pacific calendar
+calendar = mcal.get_calendar('ASX')
 
 # Fetch the schedule for the specified date range
 start_date = df['Date'].min()
 end_date = df['Date'].max()
-schedule = nasdaq_calendar.schedule(start_date=start_date, end_date=end_date)
+schedule = calendar.schedule(start_date=start_date, end_date=end_date)
 
 # Extract the list of valid trading dates
 trading_days = schedule.index
@@ -139,7 +140,7 @@ for i in Shareprice.index:
 
 # Delete non-trading days
 Shareprice = Shareprice[Shareprice['Trading_day'] != 0]
-
+#print(Shareprice['KR7005930003'].describe())
 
 ##Find dates for analysis
 #first_date = df.loc[df['Total_Cyber_News'] >= 600, 'Date'].iloc[0]
@@ -188,7 +189,9 @@ period_days= [1,2,3]
 for date in df['Date']:
     for period in period_days:
         new_column_name = 'Perf_' + str(period) + '_Days'
-        df.loc[df['Date'] == date, new_column_name] = perfcalc(date, period, df.loc[df['Date'] == date, 'Company'].values[0])
+        df.loc[df['Date'] == date, new_column_name] = perfcalc(date, period, 'KR7005930003')
+
+
 
 ###Date Selection
 df_max= df[(df['Date'] <= '2024-05-28')]
@@ -196,15 +199,19 @@ df_2015 = df[(df['Date'] >= '2015-09-21') & (df['Date'] <= '2024-05-28')]
 df_2021 = df[(df['Date'] >= '2021-01-28') & (df['Date'] <= '2024-05-28')]
 
 
-# Prepare datasets
+###Linear Regression
+
 datasets = {
     "df_max": df_max,
     "df_2015": df_2015,
     "df_2021": df_2021
 }
 
-# Define independent and dependent variables
-independent_vars = ['Volume of News', 'Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach', 'Perc. of Positive Sentiment']
+# Linear Regression Analysis
+# Define independent variables
+independent_vars = ['Volume of News','Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach','Perc. of Positive Sentiment']
+
+# Define dependent variables
 targets = ['Perf_1_Days', 'Perf_2_Days', 'Perf_3_Days']
 
 # Initialize overall results list
@@ -214,7 +221,7 @@ overall_results = []
 scaler = MinMaxScaler()
 
 for dataset_name, dataset in datasets.items():
-    # Normalize independent variables
+    # Extract independent and dependent variables for the current dataset
     X = dataset[independent_vars]
     X_normalized = scaler.fit_transform(X)
 
@@ -224,12 +231,19 @@ for dataset_name, dataset in datasets.items():
         # Split test and training data
         X_train, X_test, y_train, y_test = train_test_split(X_normalized, y, test_size=0.2, random_state=42)
 
-        # Create & train model (Linear Regression)
+        # Create & train model
         model = LinearRegression()
         model.fit(X_train, y_train)
 
         # Prediction
         y_pred = model.predict(X_test)
+
+        # Save data for visualization if dataset is df_max and target is Perf_1_Days
+        if dataset_name == "df_max" and target == "Perf_3_Days":
+            visualization_data = pd.DataFrame({
+                'Actual': y_test,
+                'Predicted': y_pred
+            })
 
         # Collect results
         overall_results.append({
@@ -237,33 +251,65 @@ for dataset_name, dataset in datasets.items():
             'Target': target,
             'MSE': mean_squared_error(y_test, y_pred),
             'R2_Score': r2_score(y_test, y_pred),
-            'Coefficients': [float(round(c, 4)) for c in model.coef_],
-            'Intercept': float(round(model.intercept_, 4))
+            'Coefficients': [float(round(c, 4)) for c in model.coef_]
         })
 
 # Prepare results table
-linear_table_data = [
+table_data = [
     [
         result['Dataset'],
         result['Target'],
         result['MSE'],
         result['R2_Score'],
-        result['Coefficients'],
-        result['Intercept']
+        result['Coefficients']
     ]
     for result in overall_results
 ]
-headers = ["Dataset", "Target", "MSE", "R2_Score", "Coefficients", "Intercept"]
+headers = ["Dataset", "Target", "MSE", "R2_Score", "Coefficients"]
 
-# Print results table for Linear Regression
-print("Linear Regression Results:")
-print(tabulate(linear_table_data, headers=headers, tablefmt="grid"))
+# Show table
+print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
-# Non-linear model: Random Forest
-overall_results_rf = []
+###Visualization of prediction vs. acutal performance
+plt.figure(figsize=(8, 6))
+x_min, x_max = -0.55, 0.25
+y_min, y_max = -0.55, 0.25
+plt.scatter(visualization_data['Actual'], visualization_data['Predicted'], alpha=0.6, label='Predicted vs actual')
+plt.plot([x_min, x_max], [x_min, x_max], color='red', linestyle='--', linewidth=2, label='Ideal fit')
+plt.xlabel('Actual performance', fontsize=14)
+plt.ylabel('Predicted performance', fontsize=14)
+plt.xlim(x_min, x_max)
+plt.ylim(y_min, y_max)
+plt.gca().xaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
+plt.gca().yaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
+#plt.title('Samsung Linear Actual vs Predicted Performance')
+plt.legend(fontsize=12)
+plt.grid(True)
+#plt.show()
+
+file_path = os.path.join("Figures", "Samsung_linear_predvsact.png")
+plt.savefig(file_path, format='png', dpi=300, bbox_inches='tight')
+
+
+##Non-linear model
+
+datasets = {
+    "df_max": df_max,
+    "df_2015": df_2015,
+    "df_2021": df_2021
+}
+
+# Define independent variables
+independent_vars = ['Volume of News', 'Cyber Attack', 'Data Security Management', 'Cyber Security', 'Data Breach', 'Perc. of Positive Sentiment']
+
+# Define dependent variables
+targets = ['Perf_1_Days', 'Perf_2_Days', 'Perf_3_Days']
+
+# Initialize overall results list
+overall_results = []
 
 for dataset_name, dataset in datasets.items():
-    # Normalize independent variables
+    # Extract independent and dependent variables for the current dataset
     X = dataset[independent_vars]
     X_normalized = scaler.fit_transform(X)
 
@@ -274,14 +320,21 @@ for dataset_name, dataset in datasets.items():
         X_train, X_test, y_train, y_test = train_test_split(X_normalized, y, test_size=0.2, random_state=42)
 
         # Create & train the Random Forest Regressor
-        model = RandomForestRegressor(n_estimators=100, random_state=42)
+        model = RandomForestRegressor()
         model.fit(X_train, y_train)
 
         # Make predictions
         y_pred = model.predict(X_test)
 
+        # Save data for visualization if dataset is df_max and target is Perf_1_Days
+        if dataset_name == "df_max" and target == "Perf_3_Days":
+            visualization_data = pd.DataFrame({
+                'Actual': y_test,
+                'Predicted': y_pred
+            })
+
         # Collect results
-        overall_results_rf.append({
+        overall_results.append({
             'Dataset': dataset_name,
             'Target': target,
             'MSE': mean_squared_error(y_test, y_pred),
@@ -289,8 +342,8 @@ for dataset_name, dataset in datasets.items():
             'Feature Importances': [float(round(imp, 4)) for imp in model.feature_importances_]
         })
 
-# Prepare results table for Random Forest
-rf_table_data = [
+# Prepare results table
+table_data = [
     [
         result['Dataset'],
         result['Target'],
@@ -298,10 +351,29 @@ rf_table_data = [
         result['R2_Score'],
         result['Feature Importances']
     ]
-    for result in overall_results_rf
+    for result in overall_results
 ]
-headers_rf = ["Dataset", "Target", "MSE", "R2_Score", "Feature Importances"]
+headers = ["Dataset", "Target", "MSE", "R2_Score", "Feature Importances"]
 
-# Print results table for Random Forest
-print("\nRandom Forest Results:")
-print(tabulate(rf_table_data, headers=headers_rf, tablefmt="grid"))
+# Print results table
+print(tabulate(table_data, headers=headers, tablefmt="grid"))
+
+###Visualization of prediction vs. acutal performance
+plt.figure(figsize=(8, 6))
+x_min, x_max = -0.55, 0.25
+y_min, y_max = -0.55, 0.25
+plt.scatter(visualization_data['Actual'], visualization_data['Predicted'], alpha=0.6, label='Predicted vs actual')
+plt.plot([x_min, x_max], [x_min, x_max], color='red', linestyle='--', linewidth=2, label='Ideal fit')
+plt.xlabel('Actual performance', fontsize=14)
+plt.ylabel('Predicted performance', fontsize=14)
+plt.xlim(x_min, x_max)
+plt.ylim(y_min, y_max)
+plt.gca().xaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
+plt.gca().yaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
+#plt.title('Samsung NonLinear Actual vs Predicted Performance')
+plt.legend(fontsize=12)
+plt.grid(True)
+#plt.show()
+
+file_path = os.path.join("Figures", "Samsung_Nonlinear_predvsact.png")
+plt.savefig(file_path, format='png', dpi=300, bbox_inches='tight')

@@ -5,11 +5,11 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 import warnings
-from pandasgui import show
 from tabulate import tabulate
 import matplotlib.pyplot as plt
 import pandas_market_calendars as mcal
 from sklearn.preprocessing import MinMaxScaler
+from matplotlib.ticker import PercentFormatter
 
 
 #ignore future warnings
@@ -140,7 +140,11 @@ for i in Shareprice.index:
 # Delete non-trading days
 Shareprice = Shareprice[Shareprice['Trading_day'] != 0]
 
-print(Shareprice['US0378331005'].describe())
+#Statistical description of data after weekend fix
+#print(Shareprice['US0378331005'].describe())
+#print(df[["Volume of News","Perc. of Positive Sentiment","Cyber Attack","Cyber Security","Data Breach","Data Security Management"]].describe())
+
+
 ##Find dates for analysis
 #first_date = df.loc[df['Total_Cyber_News'] >= 600, 'Date'].iloc[0]
 #print(first_date)
@@ -194,6 +198,7 @@ for date in df['Date']:
 df_max= df[(df['Date'] <= '2024-05-28')]
 df_2015 = df[(df['Date'] >= '2015-09-21') & (df['Date'] <= '2024-05-28')]
 df_2021 = df[(df['Date'] >= '2021-01-28') & (df['Date'] <= '2024-05-28')]
+
 
 ###Linear Regression
 
@@ -268,14 +273,16 @@ print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
 ###Visualization of prediction vs. acutal performance
 plt.figure(figsize=(8, 6))
-x_min, x_max = -0.5, 0.2
-y_min, y_max = -0.5, 0.2
+x_min, x_max = -0.55, 0.25
+y_min, y_max = -0.55, 0.25
 plt.scatter(visualization_data['Actual'], visualization_data['Predicted'], alpha=0.6, label='Predicted vs actual')
 plt.plot([x_min, x_max], [x_min, x_max], color='red', linestyle='--', linewidth=2, label='Ideal fit')
 plt.xlabel('Actual performance', fontsize=14)
 plt.ylabel('Predicted performance', fontsize=14)
 plt.xlim(x_min, x_max)
 plt.ylim(y_min, y_max)
+plt.gca().xaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
+plt.gca().yaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
 #plt.title('Apple non-linear actual vs predicted performance', fontsize=16)
 plt.legend(fontsize=12)
 plt.grid(True)
@@ -358,14 +365,16 @@ print(tabulate(table_data, headers=headers, tablefmt="grid"))
 
 ###Visualization of prediction vs. acutal performance
 plt.figure(figsize=(8, 6))
-x_min, x_max = -0.5, 0.2
-y_min, y_max = -0.5, 0.2
+x_min, x_max = -0.55, 0.25
+y_min, y_max = -0.55, 0.25
 plt.scatter(visualization_data['Actual'], visualization_data['Predicted'], alpha=0.6, label='Predicted vs actual')
 plt.plot([x_min, x_max], [x_min, x_max], color='red', linestyle='--', linewidth=2, label='Ideal fit')
 plt.xlabel('Actual performance', fontsize=14)
 plt.ylabel('Predicted performance', fontsize=14)
 plt.xlim(x_min, x_max)
 plt.ylim(y_min, y_max)
+plt.gca().xaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
+plt.gca().yaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
 #plt.title('Apple non-linear actual vs predicted performance', fontsize=16)
 plt.legend(fontsize=12)
 plt.grid(True)
