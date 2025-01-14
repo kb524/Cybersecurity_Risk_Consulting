@@ -1,3 +1,11 @@
 The two Scenarios are implemented as part of the Master Thesis "Quantitative-Automated Risk Consulting in the Cybersecurity Domain".
 
-Even though the code for both scenarios can be found in this repository, only the cyber news data for scenario 2 is publicly available due to a NDA. This data was synthetically created.
+Even though the code for both scenarios can be found in this repository, only the cyber news data for scenario 2 is publicly available due to an NDA. This data was synthetically created.
+
+This is the abstract of the thesis:
+
+To address the growing risks in cybersecurity, companies can leverage cyber risk frameworks and specialized models for quantifying cyber risks. While it already provides plausible predictions on firm-specific cybersecurity costs, its accuracy and robustness could be further improved by incorporating additional data (e.g. on actual cybersecurity costs incurred by various companies, or macroeconomic data on cost increases). Cyber news is one example of additional data that can improve the cyber risk prediction and quantification process since it can help to provide insights into various categories of cyber events related to a company that may impact, for example, companies' performance in the market.
+
+Since stock prices in efficient markets react quickly to new information, the total loss caused by cyber events could potentially be quantified by examining changes in stock prices and, consequently, market capitalization. Based on this motivation, this work focuses on analyzing how stock prices react to cyber news. For that, two different scenarios (i.e., using linear regression and random forest) predict stock prices using cyber news data. To explore the relationship in detail, the impact of different cyber events on stock prices was examined to a timeframe of three days after the event.
+
+As a result, the random forest regression slightly outperformed the linear regression in predicting market reactions and stock price changes due to the amount and sentiment analysis of cyber news. However, the overall results were insignificant as the random forest regression reached a maximum $R^2$ Score of 0.17, and the linear regression 0.008. This shows that both regressions are only able to explain a small fraction of the changes in stock prices. In addition, the results were inconsistent across different time periods. The analyses were conducted using a limited dataset, but the approach can also be applied to real-world datasets.
